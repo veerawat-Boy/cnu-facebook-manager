@@ -402,6 +402,7 @@ namespace CnuFacebookAPI.Controllers
                 }
                 catch (Exception ex)
                 {
+                    Console.WriteLine($"SaveSelectedPages error [{page.PageName}]: {ex}");
                     errors.Add($"{page.PageName}: {ex.Message}");
                 }
             }
