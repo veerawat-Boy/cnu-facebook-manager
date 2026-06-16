@@ -1,0 +1,365 @@
+@page "/dashboard"
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpFactory
+
+<div class="page-card" style="max-width:540px">
+    <div class="page-card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="page-title mb-0">เพจที่เชื่อมต่อแล้ว</h5>
+                @if (pages.Count > 0)
+                {
+                    <span class="text-muted small">@pages.Count เพจ</span>
+                }
+            </div>
+            <button class="btn-facebook"
+                    style="min-width:auto; padding:8px 16px; font-size:0.85rem;"
+                    @onclick="AddNewPage"
+                    disabled="@isConnecting">
+                @if (isConnecting)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                }
+                else
+                {
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+                        <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                    </svg>
+                }
+                เพิ่มเพจ
+            </button>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-secondary" role="status"></div>
+                <p class="text-muted mt-2 small">กำลังโหลด...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger small" role="alert">@errorMessage</div>
+        }
+        else if (pages.Count == 0)
+        {
+            <div class="text-center py-4">
+                <p class="text-muted mb-3">ยังไม่มีเพจที่เชื่อมต่อ</p>
+                <button class="btn-next" @onclick="AddNewPage" disabled="@isConnecting">เชื่อมต่อ Facebook</button>
+            </div>
+        }
+        else
+        {
+            @foreach (var page in pages)
+            {
+                <div class="page-list-item flex-column align-items-stretch" style="padding:15px 0; gap:0;">
+                    <div class="d-flex align-items-center justify-content-between w-100">
+                        <div class="page-info">
+                            <div class="page-avatar-placeholder" style="font-size:0.9rem">
+                                @(page.PageName.Length > 0 ? page.PageName[0].ToString().ToUpper() : "P")
+                            </div>
+                            <div>
+                                <div class="page-name">@(page.PageName)</div>
+                                <span class="status-badge @(page.OpenStatus == "1" ? "on" : "off")">
+                                    @(page.OpenStatus == "1" ? "เปิดตอบอัตโนมัติ" : "ปิดตอบอัตโนมัติ")
+                                </span>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   checked="@(page.OpenStatus == "1")"
+                                   @onchange="(e) => ToggleStatus(page, (bool)(e.Value ?? false))" />
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        @*<button class="btn-outline-sm @(page.IsEditingPromp ? "active" : "")"
+                                @onclick="() => TogglePrompEdit(page)">
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                            </svg>
+                            ตั้งค่า AI
+                        </button>*@
+                        <button class="btn-outline-sm danger"
+                                @onclick="() => DisconnectPage(page)"
+                                disabled="@(page.IsDisconnecting)">
+                            @if (page.IsDisconnecting)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                            }
+                            else
+                            {
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                            }
+                            ยกเลิก
+                        </button>
+                    </div>
+
+                    @*@if (page.IsEditingPromp)
+                    {
+                        <div class="promp-edit-box mt-2">
+                            <label class="form-label small fw-semibold text-secondary mb-1">บุคลิก AI</label>
+                            <textarea class="form-control form-control-sm"
+                                      rows="3"
+                                      placeholder="เช่น: คุณเป็น AI ผู้ช่วยของร้านค้า ตอบกลับลูกค้าด้วยความสุภาพ..."
+                                      @bind="page.EditingPrompValue"></textarea>
+                            <div class="d-flex justify-content-end gap-2 mt-2">
+                                <button class="btn-outline-sm" @onclick="() => CancelPrompEdit(page)">ยกเลิก</button>
+                                <button class="btn-save-sm"
+                                        @onclick="() => SavePrompSet(page)"
+                                        disabled="@(page.IsSavingPromp)">
+                                    @if (page.IsSavingPromp)
+                                    {
+                                        <span class="spinner-border spinner-border-sm" role="status"></span>
+                                    }
+                                    บันทึก
+                                </button>
+                            </div>
+                        </div>
+                    }*@
+                </div>
+            }
+        }
+
+        <div class="d-flex justify-content-end align-items-center mt-4 pt-3 border-top">
+            <a href="/" class="text-muted small text-decoration-none">ออกจากระบบ</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? FbUserId { get; set; }
+
+    private List<SavedPage> pages = new();
+    private bool isLoading = true;
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(FbUserId))
+        {
+            Nav.NavigateTo("/");
+            return;
+        }
+
+        await LoadPages();
+    }
+
+    private async Task LoadPages()
+    {
+        isLoading = true;
+        errorMessage = "";
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var res = await http.GetAsync(
+                $"api/cnufacebook/GetFacebookTokens?fbUserId={Uri.EscapeDataString(FbUserId!)}");
+
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadAsStringAsync();
+                var doc = System.Text.Json.JsonDocument.Parse(body);
+
+                pages = doc.RootElement
+                    .EnumerateArray()
+                    .Select(p => new SavedPage
+                    {
+                        PageId = p.GetProperty("pageId").GetString() ?? "",
+                        PageName = p.GetProperty("pageName").GetString() ?? "",
+                        OpenStatus = p.GetProperty("openStatus").GetString() ?? "1",
+                        //PrompSet = p.TryGetProperty("prompSet", out var ps) ? ps.GetString() ?? "" : ""
+                    })
+                    .ToList();
+            }
+            else
+            {
+                errorMessage = "ไม่สามารถโหลดข้อมูลเพจได้";
+            }
+        }
+        catch
+        {
+            errorMessage = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ToggleStatus(SavedPage page, bool isOn)
+    {
+        string newStatus = isOn ? "1" : "0";
+        string oldStatus = page.OpenStatus;
+        page.OpenStatus = newStatus;
+        StateHasChanged();
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var payload = new
+            {
+                fbUserId = FbUserId,
+                pageID = page.PageId,
+                openStatus = newStatus
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var res = await http.PatchAsync("api/cnufacebook/TogglePageStatus",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+            if (!res.IsSuccessStatusCode)
+            {
+                page.OpenStatus = oldStatus;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            page.OpenStatus = oldStatus;
+            StateHasChanged();
+        }
+    }
+
+    /*private void TogglePrompEdit(SavedPage page)
+    {
+        if (!page.IsEditingPromp)
+        {
+            page.EditingPrompValue = page.PrompSet;
+            page.IsEditingPromp = true;
+        }
+        else
+        {
+            CancelPrompEdit(page);
+        }
+    }
+
+    private void CancelPrompEdit(SavedPage page)
+    {
+        page.IsEditingPromp = false;
+        page.EditingPrompValue = "";
+    }
+
+    private async Task SavePrompSet(SavedPage page)
+    {
+        page.IsSavingPromp = true;
+        StateHasChanged();
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var payload = new
+            {
+                fbUserId = FbUserId,
+                pageID = page.PageId,
+                prompSet = string.IsNullOrWhiteSpace(page.EditingPrompValue) ? null : page.EditingPrompValue.Trim()
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var res = await http.PatchAsync("api/cnufacebook/UpdatePrompSet",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+            if (res.IsSuccessStatusCode)
+            {
+                page.PrompSet = page.EditingPrompValue.Trim();
+                page.IsEditingPromp = false;
+            }
+        }
+        catch { }
+        finally
+        {
+            page.IsSavingPromp = false;
+            StateHasChanged();
+        }
+    }*/
+
+    private async Task DisconnectPage(SavedPage page)
+    {
+        page.IsDisconnecting = true;
+        StateHasChanged();
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var payload = new
+            {
+                fbUserId = FbUserId,
+                pageID = page.PageId
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var res = await http.PatchAsync("api/cnufacebook/DisconnectPage",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+            if (res.IsSuccessStatusCode)
+            {
+                pages.Remove(page);
+            }
+        }
+        catch { }
+        finally
+        {
+            page.IsDisconnecting = false;
+            StateHasChanged();
+        }
+    }
+
+    private bool isConnecting = false;
+
+    private async Task AddNewPage()
+    {
+        if (isConnecting || string.IsNullOrWhiteSpace(FbUserId)) return;
+
+        isConnecting = true;
+        errorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            // ใช้ LongLivedToken ที่บันทึกไว้แล้วในฐานข้อมูล สร้าง session เพื่อดึงรายการเพจ
+            // โดยไม่ต้องให้ผู้ใช้ Login Facebook ใหม่
+            var res = await http.GetAsync(
+                $"api/cnufacebook/CreateSessionFromToken?fbUserId={Uri.EscapeDataString(FbUserId!)}");
+
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadAsStringAsync();
+                var doc = System.Text.Json.JsonDocument.Parse(body);
+                string sessionKey = doc.RootElement.GetProperty("sessionKey").GetString()!;
+                Nav.NavigateTo($"/select-pages?fb_session={Uri.EscapeDataString(sessionKey)}");
+            }
+            else
+            {
+                errorMessage = "ไม่พบ Token ที่บันทึกไว้ กรุณา Login Facebook ใหม่";
+            }
+        }
+        catch
+        {
+            errorMessage = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่";
+        }
+        finally
+        {
+            isConnecting = false;
+            StateHasChanged();
+        }
+    }
+
+    private class SavedPage
+    {
+        public string PageId { get; set; } = "";
+        public string PageName { get; set; } = "";
+        public string OpenStatus { get; set; } = "1";
+        //public string PrompSet { get; set; } = "";
+        //public bool IsEditingPromp { get; set; } = false;
+        //public string EditingPrompValue { get; set; } = "";
+        //public bool IsSavingPromp { get; set; } = false;
+        public bool IsDisconnecting { get; set; } = false;
+    }
+}
