@@ -74,7 +74,7 @@ namespace CnuFacebookAPI.Controllers
                             continue;
                         }
 
-                        await ProcessAndReplyAsync(senderId, userText, pageAccessToken);
+                        await ProcessAndReplyAsync(senderId, userText, pageAccessToken, receiverId);
                     }
                 }
                 catch (Exception ex)
@@ -618,30 +618,41 @@ namespace CnuFacebookAPI.Controllers
             pageId = ID ของเพจที่รับข้อความ (ใช้สำหรับส่งให้ AI เพื่อให้ AI รู้ว่ากำลังคุยกับเพจไหน เผื่อ AI จะได้ปรับคำตอบให้เหมาะสมกับแต่ละเพจได้)
             ─────────────────────────────────────────────────────────────
         */
-        private async Task ProcessAndReplyAsync(string senderId, string userText, string pageAccessToken)
+        private async Task ProcessAndReplyAsync(string senderId, string userText, string pageAccessToken, string pageId)
         {
             try
             {
                 string aiToken = _config["AI:GeminiToken"] ?? "";
                 string model = "gemini-2.5-flash";
+                string cacheKey = $"conv_{pageId}_{senderId}";
+
+                // ดึง conversation history จาก cache (หรือสร้างใหม่ถ้ายังไม่มี)
+                if (!_cache.TryGetValue(cacheKey, out List<ConvMsg>? history) || history == null)
+                    history = new List<ConvMsg>();
+
+                // เพิ่มข้อความของ user เข้า history
+                history.Add(new ConvMsg("user", userText));
+
+                // จำกัดไว้ 20 ข้อความล่าสุด เพื่อไม่ให้ token เกิน limit
+                if (history.Count > 20)
+                    history = history.GetRange(history.Count - 20, 20);
 
                 var geminiUrl = $"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={aiToken}";
 
-                string effectivePrompt = FirstPromp;
                 var geminiRequest = new
                 {
                     system_instruction = new
                     {
-                        parts = new[] { new { text = effectivePrompt } }
+                        parts = new[] { new { text = FirstPromp } }
                     },
-                    // ข้อมูลเนื้อหาที่จะส่งให้ AI โดยในที่นี้มีแค่บทบาท "user" กับข้อความที่ user ส่งมา
-                    contents = new[]
+                    contents = history.Select(m => new
                     {
-                        new { role = "user", parts = new[] { new { text = userText } } }
-                    }
+                        role = m.Role,
+                        parts = new[] { new { text = m.Text } }
+                    }).ToArray()
                 };
 
-                Console.WriteLine($"[Gemini] Calling model={model}, tokenLen={aiToken.Length}");
+                Console.WriteLine($"[Gemini] model={model} history={history.Count} msgs");
 
                 using var http = _httpFactory.CreateClient();
                 var aiRes = await http.PostAsync(geminiUrl,
@@ -649,19 +660,15 @@ namespace CnuFacebookAPI.Controllers
                     Encoding.UTF8, "application/json"));
 
                 var aiBody = (await aiRes.Content.ReadAsStringAsync()) ?? "";
-                Console.WriteLine($"[Gemini] Status={(int)aiRes.StatusCode} Body={aiBody}");
+                Console.WriteLine($"[Gemini] Status={(int)aiRes.StatusCode}");
 
                 if (!aiRes.IsSuccessStatusCode)
                 {
-                    Console.WriteLine($"[Gemini] Error body: {aiBody}");
+                    Console.WriteLine($"[Gemini] Error: {aiBody}");
                     return;
                 }
 
-                if (string.IsNullOrEmpty(aiBody))
-                {
-                    Console.WriteLine("[Gemini] Empty response body");
-                    return;
-                }
+                if (string.IsNullOrEmpty(aiBody)) return;
 
                 var aiJson = JsonDocument.Parse(aiBody);
                 string? replyText = aiJson.RootElement
@@ -672,6 +679,13 @@ namespace CnuFacebookAPI.Controllers
                     .GetString();
 
                 if (string.IsNullOrEmpty(replyText)) return;
+
+                // เพิ่มคำตอบของ AI เข้า history แล้วบันทึกกลับ cache (30 นาที inactivity)
+                history.Add(new ConvMsg("model", replyText));
+                _cache.Set(cacheKey, history, new MemoryCacheEntryOptions
+                {
+                    SlidingExpiration = TimeSpan.FromMinutes(30)
+                });
 
                 const int fbLimit = 2000;
                 var chunks = new List<string>();
@@ -702,6 +716,8 @@ namespace CnuFacebookAPI.Controllers
         // ─────────────────────────────────────────────────────────────
         // Model classes
         // ─────────────────────────────────────────────────────────────
+        private record ConvMsg(string Role, string Text);
+
         public class FacebookSessionCache
         {
             public string LongToken { get; set; } = "";
