@@ -589,7 +589,7 @@ namespace CnuFacebookAPI.Controllers
                 using var cmd = new NpgsqlCommand(@"
                     SELECT accesstoken
                     FROM accesstokenfacebook
-                    WHERE pageid = @pid
+                    WHERE pageid = @pid AND openstatus = '1'
                     LIMIT 1",
                     conn);
                 cmd.Parameters.AddWithValue("@pid", pageId);

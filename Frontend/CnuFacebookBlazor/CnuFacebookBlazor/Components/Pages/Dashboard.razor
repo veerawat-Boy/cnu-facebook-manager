@@ -2,6 +2,7 @@
 @rendermode InteractiveServer
 @inject NavigationManager Nav
 @inject IHttpClientFactory HttpFactory
+@inject IJSRuntime JS
 
 <div class="page-card" style="max-width:540px">
     <div class="page-card-body">
@@ -337,7 +338,19 @@
             }
             else
             {
-                errorMessage = "ไม่พบ Token ที่บันทึกไว้ กรุณา Login Facebook ใหม่";
+                // ไม่พบ token ใน DB → เปิด Facebook login popup แทน
+                var loginRes = await http.GetAsync("api/cnufacebook/GetFacebookLoginUrl");
+                if (loginRes.IsSuccessStatusCode)
+                {
+                    var loginBody = await loginRes.Content.ReadAsStringAsync();
+                    var loginDoc = System.Text.Json.JsonDocument.Parse(loginBody);
+                    string loginUrl = loginDoc.RootElement.GetProperty("loginUrl").GetString()!;
+                    await JS.InvokeVoidAsync("open", loginUrl, "_blank", "width=700,height=600,left=400,top=100");
+                }
+                else
+                {
+                    errorMessage = "ไม่สามารถเชื่อมต่อ Facebook ได้ กรุณาลองใหม่";
+                }
             }
         }
         catch
