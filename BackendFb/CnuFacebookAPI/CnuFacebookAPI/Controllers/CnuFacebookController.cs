@@ -576,6 +576,81 @@ namespace CnuFacebookAPI.Controllers
         }
 
         // ─────────────────────────────────────────────────────────────
+        // Data Deletion Callback — Facebook POST มาเมื่อ user ถอน permission
+        // Facebook ส่ง signed_request มาใน body (form-encoded)
+        // เราต้องลบข้อมูลของ user นั้น แล้ว respond ด้วย JSON { url, confirmation_code }
+        // ─────────────────────────────────────────────────────────────
+        [HttpPost("DataDeletion")]
+        public async Task<IActionResult> DataDeletion([FromForm] string? signed_request)
+        {
+            if (string.IsNullOrEmpty(signed_request))
+                return BadRequest(new { error = "missing signed_request" });
+
+            // signed_request มีรูปแบบ base64url_signature.base64url_payload
+            var parts = signed_request.Split('.');
+            if (parts.Length != 2)
+                return BadRequest(new { error = "invalid signed_request format" });
+
+            // decode payload จาก base64url
+            string payloadBase64 = parts[1];
+            // แปลง base64url → base64 ปกติ
+            payloadBase64 = payloadBase64.Replace('-', '+').Replace('_', '/');
+            int pad = payloadBase64.Length % 4;
+            if (pad > 0) payloadBase64 += new string('=', 4 - pad);
+
+            string payloadJson;
+            try
+            {
+                payloadJson = Encoding.UTF8.GetString(Convert.FromBase64String(payloadBase64));
+            }
+            catch
+            {
+                return BadRequest(new { error = "invalid payload encoding" });
+            }
+
+            var payload = JsonDocument.Parse(payloadJson);
+            string fbUserId = payload.RootElement.TryGetProperty("user_id", out var uid)
+                ? uid.GetString() ?? ""
+                : "";
+
+            // สร้าง confirmation code สำหรับ tracking
+            string confirmationCode = $"cnu_del_{Guid.NewGuid():N}";
+
+            if (!string.IsNullOrEmpty(fbUserId))
+            {
+                // ลบข้อมูลของ user ออกจาก DB (fire-and-forget เพราะ Facebook รอ response เร็ว)
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        string connStr = _config["ConnectionStrings:EMS"]!;
+                        using var conn = new NpgsqlConnection(connStr);
+                        await conn.OpenAsync();
+                        using var cmd = new NpgsqlCommand(
+                            "DELETE FROM accesstokenfacebook WHERE createuserid = @uid", conn);
+                        cmd.Parameters.AddWithValue("@uid", fbUserId);
+                        await cmd.ExecuteNonQueryAsync();
+                        Console.WriteLine($"[DataDeletion] ลบข้อมูล fbUserId={fbUserId} confirmation={confirmationCode}");
+                    }
+                    catch (Exception ex)
+                    {
+                        Console.WriteLine($"[DataDeletion] error: {ex.Message}");
+                    }
+                });
+            }
+
+            // Facebook ต้องการ URL ที่ user ตรวจสอบสถานะการลบได้ และ confirmation_code
+            string frontendBase = _config["FacebookApp:FrontendSelectPageUrl"]!
+                .Replace("/select-pages", "").TrimEnd('/');
+
+            return Ok(new
+            {
+                url = $"{frontendBase}/data-deletion?code={confirmationCode}",
+                confirmation_code = confirmationCode
+            });
+        }
+
+        // ─────────────────────────────────────────────────────────────
         // Helper: ดึง AccessToken ของเพจจาก DB
         // ─────────────────────────────────────────────────────────────
         private string? GetPageAccessToken(string pageId)

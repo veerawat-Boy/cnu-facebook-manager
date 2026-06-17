@@ -1,4 +1,16 @@
 @page "/data-deletion"
+@inject NavigationManager Nav
+
+@code {
+    private string? ConfirmationCode;
+
+    protected override void OnInitialized()
+    {
+        var uri = new Uri(Nav.Uri);
+        var query = System.Web.HttpUtility.ParseQueryString(uri.Query);
+        ConfirmationCode = query["code"];
+    }
+}
 
 <div class="policy-wrapper">
     <div class="policy-card">
@@ -27,12 +39,12 @@
             <h2>2. วิธีลบข้อมูลของท่าน</h2>
             <p>ท่านสามารถขอให้ลบข้อมูลทั้งหมดออกจากระบบได้ 2 วิธี:</p>
 
-            <h3>วิธีที่ 1 — ผ่าน Facebook</h3>
+            <h3>วิธีที่ 1 — ผ่าน Facebook (อัตโนมัติ)</h3>
             <ol>
                 <li>เข้าสู่ <strong>การตั้งค่า Facebook</strong></li>
                 <li>ไปที่ <strong>ความเป็นส่วนตัว → แอปพลิเคชันและเว็บไซต์</strong></li>
-                <li>ค้นหา <strong>AppPage</strong> แล้วกด <strong>ลบ</strong></li>
-                <li>ระบบจะแจ้งมายังเราโดยอัตโนมัติเพื่อลบข้อมูลที่เกี่ยวข้องทั้งหมด</li>
+                <li>ค้นหา <strong>CNUChatBot2026</strong> แล้วกด <strong>ลบ</strong></li>
+                <li>ระบบจะแจ้งมายังเราโดยอัตโนมัติผ่าน Callback URL และลบข้อมูลทันที</li>
             </ol>
 
             <h3>วิธีที่ 2 — ติดต่อโดยตรง</h3>
@@ -42,6 +54,16 @@
                 พร้อมชื่อบัญชี Facebook ของท่าน
             </p>
         </section>
+
+        @if (!string.IsNullOrEmpty(ConfirmationCode))
+        {
+            <section class="status-box">
+                <h2>สถานะการลบข้อมูล</h2>
+                <p>คำขอลบข้อมูลของท่านได้รับการบันทึกแล้ว</p>
+                <p>รหัสยืนยัน: <strong>@ConfirmationCode</strong></p>
+                <p>ข้อมูลของท่านจะถูกลบภายใน 30 วันทำการ</p>
+            </section>
+        }
 
         <section>
             <h2>3. ระยะเวลาดำเนินการ</h2>
