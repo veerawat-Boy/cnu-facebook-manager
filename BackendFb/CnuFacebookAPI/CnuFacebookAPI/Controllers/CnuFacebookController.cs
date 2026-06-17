@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
-using Microsoft.Data.SqlClient;
+using Npgsql;
 using Newtonsoft.Json;
 using System.Text;
 using System.Text.Json;
@@ -251,19 +251,19 @@ namespace CnuFacebookAPI.Controllers
             string connStr = _config["ConnectionStrings:EMS"]!;
             var result = new List<object>();
 
-            // SqlConnection = ตัวเชื่อมต่อกับ SQL Server
+            // NpgsqlConnection = ตัวเชื่อมต่อกับ SQL Server
             // using = ปิด connection อัตโนมัติเมื่อออกจาก block (ไม่ต้อง conn.Close() เอง)
-            using var conn = new SqlConnection(connStr);
+            using var conn = new NpgsqlConnection(connStr);
             conn.Open(); // เปิด connection จริงๆ (ยังไม่ query)
 
-            // SqlCommand = คำสั่ง SQL ที่จะรัน ผูกกับ connection ที่เปิดไว้
+            // NpgsqlCommand = คำสั่ง SQL ที่จะรัน ผูกกับ connection ที่เปิดไว้
             // @ ข้างหน้า string = verbatim string literal (เขียนหลายบรรทัดได้โดยไม่ต้อง \n)
-            using var cmd = new SqlCommand(@"
-                SELECT ID, AccessToken, LongLivedToken, PageID, PageName,
-                       CreateUserID, CreateDate, CreateTime, UpdateUserID, UpdateDate, UpdateTime
-                FROM AccessTokenFacebook
-                WHERE CreateUserID = 1
-                ORDER BY CreateDate DESC, CreateTime DESC", conn);
+            using var cmd = new NpgsqlCommand(@"
+                SELECT id, accesstoken, longlivetoken, pageid, pagename,
+                       createuserid, createdate, createtime, updateuserid, updatedate, updatetime
+                FROM accesstokenfacebook
+                WHERE createuserid = '1'
+                ORDER BY createdate DESC, createtime DESC", conn);
 
             // ExecuteReader() = รัน SELECT แล้วได้ SqlDataReader กลับมา
             // reader ทำหน้าที่เหมือน cursor ชี้ทีละแถว (ยังไม่โหลดข้อมูลทั้งหมดเข้า RAM)
@@ -361,24 +361,21 @@ namespace CnuFacebookAPI.Controllers
                 try
                 {
                     // บันทึก / อัปเดต token ลง DB
-                    using var conn = new SqlConnection(connStr);
+                    using var conn = new NpgsqlConnection(connStr);
                     conn.Open();
-                    using var cmd = new SqlCommand(@"
-                        IF NOT EXISTS (SELECT 1 FROM AccessTokenFacebook WHERE PageID = @pageId AND CreateUserID = @uid)
-                            INSERT INTO AccessTokenFacebook
-                                (AccessToken, LongLivedToken, PageID, PageName, CreateUserID, CreateDate, CreateTime)
-                            VALUES
-                                (@accessToken, @longToken, @pageId, @pageName, @uid,
-                                 CAST(GETDATE() AS DATE), CONVERT(VARCHAR(8), GETDATE(), 108))
-                        ELSE
-                            UPDATE AccessTokenFacebook
-                            SET AccessToken    = @accessToken,
-                                LongLivedToken = @longToken,
-                                PageName       = @pageName,
-                                UpdateUserID   = @uid,
-                                UpdateDate     = CAST(GETDATE() AS DATE),
-                                UpdateTime     = CONVERT(VARCHAR(8), GETDATE(), 108)
-                            WHERE PageID = @pageId AND CreateUserID = @uid", conn);
+                    using var cmd = new NpgsqlCommand(@"
+                        INSERT INTO accesstokenfacebook
+                            (accesstoken, longlivetoken, pageid, pagename, createuserid, createdate, createtime)
+                        VALUES
+                            (@accessToken, @longToken, @pageId, @pageName, @uid,
+                             CURRENT_DATE, TO_CHAR(NOW(), 'HH24:MI:SS'))
+                        ON CONFLICT (pageid, createuserid) DO UPDATE
+                        SET accesstoken    = @accessToken,
+                            longlivetoken  = @longToken,
+                            pagename       = @pageName,
+                            updateuserid   = @uid,
+                            updatedate     = CURRENT_DATE,
+                            updatetime     = TO_CHAR(NOW(), 'HH24:MI:SS')", conn);
 
                     cmd.Parameters.AddWithValue("@pageId",      page.PageId);
                     cmd.Parameters.AddWithValue("@accessToken", page.PageAccessToken);
@@ -425,14 +422,15 @@ namespace CnuFacebookAPI.Controllers
            string connStr = _config["ConnectionStrings:EMS"]!;
            string longToken = "";
 
-           using (var conn = new SqlConnection(connStr))
+           using (var conn = new NpgsqlConnection(connStr))
            {
                conn.Open();
-               using var cmd = new SqlCommand(@"
-                   SELECT TOP 1 LongLivedToken
-                   FROM AccessTokenFacebook
-                   WHERE CreateUserID = @uid AND LongLivedToken IS NOT NULL AND LongLivedToken <> ''
-                   ORDER BY CreateDate DESC",
+               using var cmd = new NpgsqlCommand(@"
+                   SELECT longlivetoken
+                   FROM accesstokenfacebook
+                   WHERE createuserid = @uid AND longlivetoken IS NOT NULL AND longlivetoken <> ''
+                   ORDER BY createdate DESC
+                   LIMIT 1",
                    conn);
                // Parameters.AddWithValue = ใส่ค่า parameter ลงใน SQL แบบปลอดภัย (ป้องกัน SQL Injection)
                // @uid ใน SQL จะถูกแทนที่ด้วยค่า fbUserId จริงๆ โดย SQL Server จัดการ escape ให้เอง
@@ -494,14 +492,14 @@ namespace CnuFacebookAPI.Controllers
            string connStr = _config["ConnectionStrings:EMS"]!;
            var result = new List<object>();
 
-           using var conn = new SqlConnection(connStr);
+           using var conn = new NpgsqlConnection(connStr);
            conn.Open();
 
-           using var cmd = new SqlCommand(@"
-               SELECT ID, PageID, PageName, OpenStatus, CreateDate, CreateTime
-               FROM AccessTokenFacebook
-               WHERE CreateUserID = @uid
-               ORDER BY CreateDate DESC",
+           using var cmd = new NpgsqlCommand(@"
+               SELECT id, pageid, pagename, openstatus, createdate, createtime
+               FROM accesstokenfacebook
+               WHERE createuserid = @uid
+               ORDER BY createdate DESC",
                conn);
            cmd.Parameters.AddWithValue("@uid", fbUserId);
 
@@ -533,12 +531,12 @@ namespace CnuFacebookAPI.Controllers
 
            string connStr = _config["ConnectionStrings:EMS"]!;
 
-           using var conn = new SqlConnection(connStr);
+           using var conn = new NpgsqlConnection(connStr);
            conn.Open();
 
-           using var cmd = new SqlCommand(@"
-               DELETE FROM AccessTokenFacebook
-               WHERE CreateUserID = @uid AND PageID = @pid",
+           using var cmd = new NpgsqlCommand(@"
+               DELETE FROM accesstokenfacebook
+               WHERE createuserid = @uid AND pageid = @pid",
                conn);
            cmd.Parameters.AddWithValue("@uid", req.FbUserId);
            cmd.Parameters.AddWithValue("@pid", req.PageID);
@@ -561,13 +559,13 @@ namespace CnuFacebookAPI.Controllers
 
            string connStr = _config["ConnectionStrings:EMS"]!;
 
-           using var conn = new SqlConnection(connStr);
+           using var conn = new NpgsqlConnection(connStr);
            conn.Open();
 
-           using var cmd = new SqlCommand(@"
-               UPDATE AccessTokenFacebook
-               SET OpenStatus = @status
-               WHERE CreateUserID = @uid AND PageID = @pid",
+           using var cmd = new NpgsqlCommand(@"
+               UPDATE accesstokenfacebook
+               SET openstatus = @status
+               WHERE createuserid = @uid AND pageid = @pid",
                conn);
            cmd.Parameters.AddWithValue("@status", req.OpenStatus);
            cmd.Parameters.AddWithValue("@uid", req.FbUserId);
@@ -585,13 +583,14 @@ namespace CnuFacebookAPI.Controllers
             try
             {
                 string connStr = _config["ConnectionStrings:EMS"]!;
-                using var conn = new SqlConnection(connStr);
+                using var conn = new NpgsqlConnection(connStr);
                 conn.Open();
 
-                using var cmd = new SqlCommand(@"
-                    SELECT TOP 1 AccessToken
-                    FROM AccessTokenFacebook
-                    WHERE PageID = @pid",
+                using var cmd = new NpgsqlCommand(@"
+                    SELECT accesstoken
+                    FROM accesstokenfacebook
+                    WHERE pageid = @pid
+                    LIMIT 1",
                     conn);
                 cmd.Parameters.AddWithValue("@pid", pageId);
 

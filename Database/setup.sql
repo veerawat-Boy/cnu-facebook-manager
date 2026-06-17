@@ -1,54 +1,23 @@
 -- ================================================================
--- CNU Facebook API - Database Setup Script
--- รัน script นี้ใน SQL Server Management Studio หรือ sqlcmd
+-- CNU Facebook API - PostgreSQL Database Setup Script
 -- ================================================================
 
--- สร้าง Database (ถ้ายังไม่มี)
-IF NOT EXISTS (SELECT name FROM sys.databases WHERE name = 'CnuFacebookDB')
-BEGIN
-    CREATE DATABASE CnuFacebookDB;
-END
-GO
+CREATE TABLE IF NOT EXISTS accesstokenfacebook (
+    id              BIGSERIAL       PRIMARY KEY,
+    accesstoken     VARCHAR(512)    NOT NULL,
+    longlivetoken   VARCHAR(512),
+    pageid          VARCHAR(50)     NOT NULL,
+    pagename        VARCHAR(255),
+    openstatus      VARCHAR(1)      DEFAULT '1',
+    createuserid    VARCHAR(100)    NOT NULL,
+    createdate      DATE,
+    createtime      VARCHAR(8),
+    updateuserid    VARCHAR(100),
+    updatedate      DATE,
+    updatetime      VARCHAR(8),
 
-USE CnuFacebookDB;
-GO
+    CONSTRAINT uq_page_user UNIQUE (pageid, createuserid)
+);
 
--- ================================================================
--- ตาราง AccessTokenFacebook
--- เก็บ Page Access Token และ Long-Lived Token ของแต่ละ Facebook Page
--- ================================================================
-IF NOT EXISTS (SELECT 1 FROM sys.tables WHERE name = 'AccessTokenFacebook')
-BEGIN
-    CREATE TABLE AccessTokenFacebook (
-        ID              BIGINT          IDENTITY(1,1)   NOT NULL,
-        AccessToken     NVARCHAR(512)                   NOT NULL,
-        LongLivedToken  NVARCHAR(512)                       NULL,
-        PageID          NVARCHAR(50)                    NOT NULL,
-        PageName        NVARCHAR(255)                       NULL,
-        OpenStatus      NVARCHAR(1)                         NULL    DEFAULT '1',
-        CreateUserID    NVARCHAR(100)                   NOT NULL,
-        CreateDate      DATE                                NULL,
-        CreateTime      VARCHAR(8)                          NULL,
-        UpdateUserID    NVARCHAR(100)                       NULL,
-        UpdateDate      DATE                                NULL,
-        UpdateTime      VARCHAR(8)                          NULL,
-
-        CONSTRAINT PK_AccessTokenFacebook PRIMARY KEY (ID)
-    );
-
-    CREATE INDEX IX_AccessTokenFacebook_PageID
-        ON AccessTokenFacebook (PageID);
-
-    CREATE INDEX IX_AccessTokenFacebook_CreateUserID
-        ON AccessTokenFacebook (CreateUserID);
-
-    PRINT 'Created table AccessTokenFacebook';
-END
-ELSE
-BEGIN
-    PRINT 'Table AccessTokenFacebook already exists';
-END
-GO
-
-PRINT 'Database setup complete.';
-GO
+CREATE INDEX IF NOT EXISTS ix_accesstokenfacebook_pageid ON accesstokenfacebook (pageid);
+CREATE INDEX IF NOT EXISTS ix_accesstokenfacebook_createuserid ON accesstokenfacebook (createuserid);
