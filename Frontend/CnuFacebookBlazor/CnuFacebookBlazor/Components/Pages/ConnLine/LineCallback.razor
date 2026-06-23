@@ -9,27 +9,14 @@
         {
             <div class="text-center py-4">
                 <div class="spinner-border text-secondary" role="status"></div>
-                <p class="text-muted mt-2 small">กำลังเชื่อมต่อ LINE...</p>
+                <p class="text-muted mt-2 small">กำลังตรวจสอบ...</p>
             </div>
         }
         else if (!string.IsNullOrEmpty(errorMessage))
         {
             <div class="alert alert-danger small" role="alert">@errorMessage</div>
             <div class="text-center mt-3">
-                <a href="/" class="btn-next">กลับหน้าหลัก</a>
-            </div>
-        }
-        else
-        {
-            <div class="text-center">
-                @if (!string.IsNullOrEmpty(pictureUrl))
-                {
-                    <img src="@pictureUrl" class="rounded-circle mb-3"
-                         width="64" height="64" alt="@displayName" />
-                }
-                <h5 class="page-title">เชื่อมต่อ LINE สำเร็จ!</h5>
-                <p class="page-subtitle">@displayName</p>
-                <a href="/" class="btn-next">กลับหน้าหลัก</a>
+                <a href="/connect-line" class="btn-next">ลองใหม่</a>
             </div>
         }
     </div>
@@ -44,8 +31,6 @@
 
     private bool isLoading = true;
     private string errorMessage = "";
-    private string displayName = "";
-    private string pictureUrl = "";
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
@@ -77,22 +62,23 @@
             {
                 var body = await res.Content.ReadAsStringAsync();
                 var doc = System.Text.Json.JsonDocument.Parse(body);
-                displayName = doc.RootElement.TryGetProperty("displayName", out var dn)
-                    ? dn.GetString() ?? "" : "";
-                pictureUrl = doc.RootElement.TryGetProperty("pictureUrl", out var pic)
-                    ? pic.GetString() ?? "" : "";
+                string lineUserId = doc.RootElement.TryGetProperty("lineUserId", out var uid)
+                    ? uid.GetString() ?? "" : "";
+
+                Nav.NavigateTo($"/line-dashboard?lineUserId={Uri.EscapeDataString(lineUserId)}");
             }
             else
             {
                 errorMessage = "ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาลองใหม่";
+                isLoading = false;
+                StateHasChanged();
             }
         }
         catch
         {
             errorMessage = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่";
+            isLoading = false;
+            StateHasChanged();
         }
-
-        isLoading = false;
-        StateHasChanged();
     }
 }

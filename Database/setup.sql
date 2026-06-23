@@ -21,3 +21,23 @@ CREATE TABLE IF NOT EXISTS accesstokenfacebook (
 
 CREATE INDEX IF NOT EXISTS ix_accesstokenfacebook_pageid ON accesstokenfacebook (pageid);
 CREATE INDEX IF NOT EXISTS ix_accesstokenfacebook_createuserid ON accesstokenfacebook (createuserid);
+
+CREATE TABLE IF NOT EXISTS accesstokenline (
+    id                  BIGSERIAL       PRIMARY KEY,
+    channelid           VARCHAR(100)    NOT NULL,
+    channelname         VARCHAR(255),
+    channelaccesstoken  VARCHAR(512)    NOT NULL,
+    channelsecret       VARCHAR(100)    NOT NULL,
+    openstatus          VARCHAR(1)      DEFAULT '1',
+    createuserid        VARCHAR(100)    NOT NULL,
+    createdate          DATE,
+    createtime          VARCHAR(8),
+    updateuserid        VARCHAR(100),
+    updatedate          DATE,
+    updatetime          VARCHAR(8),
+
+    CONSTRAINT uq_line_channel_user UNIQUE (channelid, createuserid)
+);
+
+CREATE INDEX IF NOT EXISTS ix_accesstokenline_channelid ON accesstokenline (channelid);
+CREATE INDEX IF NOT EXISTS ix_accesstokenline_createuserid ON accesstokenline (createuserid);

@@ -1,0 +1,125 @@
+@page "/add-line-account"
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpFactory
+
+<div class="page-card">
+    <div class="page-card-body">
+        <div class="text-center mb-4">
+            <h5 class="page-title">เพิ่ม LINE Official Account</h5>
+            <p class="page-subtitle">กรอกข้อมูลจาก LINE Developers Console</p>
+        </div>
+
+        @if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger py-2 small mb-3" role="alert">@errorMessage</div>
+        }
+
+        <div class="mb-3">
+            <label class="form-label small fw-semibold">ชื่อบัญชี (ไม่บังคับ)</label>
+            <input type="text" class="form-control form-control-sm"
+                   placeholder="ใส่ชื่อที่ต้องการแสดง หรือจะดึงจาก LINE อัตโนมัติ"
+                   @bind="channelName" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label small fw-semibold">Channel Access Token <span class="text-danger">*</span></label>
+            <textarea class="form-control form-control-sm" rows="3"
+                      placeholder="ดูได้จาก LINE Developers Console → Messaging API → Channel access token"
+                      @bind="channelAccessToken"></textarea>
+        </div>
+
+        <div class="mb-4">
+            <label class="form-label small fw-semibold">Channel Secret <span class="text-danger">*</span></label>
+            <input type="text" class="form-control form-control-sm"
+                   placeholder="ดูได้จาก LINE Developers Console → Basic settings → Channel secret"
+                   @bind="channelSecret" />
+        </div>
+
+        <div class="d-flex justify-content-between align-items-center">
+            <a href="@($"/line-dashboard?lineUserId={Uri.EscapeDataString(LineUserId ?? "")}")"
+               class="text-muted text-decoration-none small">&larr; ย้อนกลับ</a>
+            <button class="btn-line" @onclick="Save" disabled="@isSaving">
+                @if (isSaving)
+                {
+                    <span class="spinner-border spinner-border-sm" role="status"></span>
+                    <span>กำลังบันทึก...</span>
+                }
+                else
+                {
+                    <span>บันทึก</span>
+                }
+            </button>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? LineUserId { get; set; }
+
+    private string channelName = "";
+    private string channelAccessToken = "";
+    private string channelSecret = "";
+    private bool isSaving = false;
+    private string errorMessage = "";
+
+    protected override void OnInitialized()
+    {
+        if (string.IsNullOrWhiteSpace(LineUserId))
+            Nav.NavigateTo("/connect-line");
+    }
+
+    private async Task Save()
+    {
+        if (string.IsNullOrWhiteSpace(channelAccessToken) || string.IsNullOrWhiteSpace(channelSecret))
+        {
+            errorMessage = "กรุณากรอก Channel Access Token และ Channel Secret";
+            return;
+        }
+
+        isSaving = true;
+        errorMessage = "";
+        StateHasChanged();
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var payload = new
+            {
+                channelName        = channelName.Trim(),
+                channelAccessToken = channelAccessToken.Trim(),
+                channelSecret      = channelSecret.Trim(),
+                createUserId       = LineUserId
+            };
+
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var res = await http.PostAsync("api/cnuline/SaveLineAccount",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+            if (res.IsSuccessStatusCode)
+            {
+                Nav.NavigateTo($"/line-dashboard?lineUserId={Uri.EscapeDataString(LineUserId!)}");
+            }
+            else
+            {
+                var body = await res.Content.ReadAsStringAsync();
+                try
+                {
+                    var doc = System.Text.Json.JsonDocument.Parse(body);
+                    errorMessage = doc.RootElement.TryGetProperty("message", out var m)
+                        ? m.GetString() ?? "บันทึกไม่สำเร็จ" : "บันทึกไม่สำเร็จ";
+                }
+                catch { errorMessage = "บันทึกไม่สำเร็จ กรุณาลองใหม่"; }
+            }
+        }
+        catch
+        {
+            errorMessage = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่";
+        }
+        finally
+        {
+            isSaving = false;
+        }
+    }
+}

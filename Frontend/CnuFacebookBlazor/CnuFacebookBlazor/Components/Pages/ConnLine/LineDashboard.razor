@@ -1,0 +1,217 @@
+@page "/line-dashboard"
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpFactory
+
+<div class="page-card" style="max-width:540px">
+    <div class="page-card-body">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h5 class="page-title mb-0">LINE Official Accounts</h5>
+                @if (accounts.Count > 0)
+                {
+                    <span class="text-muted small">@accounts.Count บัญชี</span>
+                }
+            </div>
+            <button class="btn-line"
+                    style="min-width:auto; padding:8px 16px; font-size:0.85rem;"
+                    @onclick="GoAddAccount">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="white">
+                    <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z"/>
+                </svg>
+                เพิ่ม
+            </button>
+        </div>
+
+        @if (isLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-secondary" role="status"></div>
+                <p class="text-muted mt-2 small">กำลังโหลด...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger small" role="alert">@errorMessage</div>
+        }
+        else if (accounts.Count == 0)
+        {
+            <div class="text-center py-4">
+                <p class="text-muted mb-3">ยังไม่มี LINE Official Account ที่เชื่อมต่อ</p>
+                <button class="btn-line" @onclick="GoAddAccount">เพิ่ม LINE Official Account</button>
+            </div>
+        }
+        else
+        {
+            @foreach (var acc in accounts)
+            {
+                <div class="page-list-item flex-column align-items-stretch" style="padding:15px 0; gap:0;">
+                    <div class="d-flex align-items-center justify-content-between w-100">
+                        <div class="page-info">
+                            <div class="page-avatar-placeholder" style="font-size:0.9rem; background:#06C755;">
+                                @(acc.ChannelName.Length > 0 ? acc.ChannelName[0].ToString().ToUpper() : "L")
+                            </div>
+                            <div>
+                                <div class="page-name">@acc.ChannelName</div>
+                                <span class="status-badge @(acc.OpenStatus == "1" ? "on" : "off")">
+                                    @(acc.OpenStatus == "1" ? "เปิดตอบอัตโนมัติ" : "ปิดตอบอัตโนมัติ")
+                                </span>
+                            </div>
+                        </div>
+                        <div class="form-check form-switch mb-0">
+                            <input class="form-check-input"
+                                   type="checkbox"
+                                   role="switch"
+                                   checked="@(acc.OpenStatus == "1")"
+                                   @onchange="(e) => ToggleStatus(acc, (bool)(e.Value ?? false))" />
+                        </div>
+                    </div>
+
+                    <div class="d-flex align-items-center gap-2 mt-2">
+                        <button class="btn-outline-sm danger"
+                                @onclick="() => Disconnect(acc)"
+                                disabled="@acc.IsDisconnecting">
+                            @if (acc.IsDisconnecting)
+                            {
+                                <span class="spinner-border spinner-border-sm" role="status"></span>
+                            }
+                            else
+                            {
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
+                                </svg>
+                            }
+                            ยกเลิก
+                        </button>
+                    </div>
+                </div>
+            }
+        }
+
+        <div class="d-flex justify-content-end align-items-center mt-4 pt-3 border-top">
+            <a href="/" class="text-muted small text-decoration-none">ออกจากระบบ</a>
+        </div>
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery]
+    public string? LineUserId { get; set; }
+
+    private List<LineAccount> accounts = new();
+    private bool isLoading = true;
+    private string errorMessage = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        if (string.IsNullOrWhiteSpace(LineUserId))
+        {
+            Nav.NavigateTo("/connect-line");
+            return;
+        }
+
+        await LoadAccounts();
+    }
+
+    private async Task LoadAccounts()
+    {
+        isLoading = true;
+        errorMessage = "";
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var res = await http.GetAsync(
+                $"api/cnuline/GetLineAccounts?lineUserId={Uri.EscapeDataString(LineUserId!)}");
+
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadAsStringAsync();
+                var doc = System.Text.Json.JsonDocument.Parse(body);
+                accounts = doc.RootElement.EnumerateArray()
+                    .Select(a => new LineAccount
+                    {
+                        ChannelId   = a.GetProperty("channelId").GetString()   ?? "",
+                        ChannelName = a.GetProperty("channelName").GetString() ?? "",
+                        OpenStatus  = a.GetProperty("openStatus").GetString()  ?? "1"
+                    })
+                    .ToList();
+            }
+            else
+            {
+                errorMessage = "ไม่สามารถโหลดข้อมูลได้";
+            }
+        }
+        catch
+        {
+            errorMessage = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void GoAddAccount()
+        => Nav.NavigateTo($"/add-line-account?lineUserId={Uri.EscapeDataString(LineUserId!)}");
+
+    private async Task ToggleStatus(LineAccount acc, bool isOn)
+    {
+        string newStatus = isOn ? "1" : "0";
+        string oldStatus = acc.OpenStatus;
+        acc.OpenStatus = newStatus;
+        StateHasChanged();
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var payload = new { lineUserId = LineUserId, channelId = acc.ChannelId, openStatus = newStatus };
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var res = await http.PatchAsync("api/cnuline/ToggleLineAccountStatus",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+            if (!res.IsSuccessStatusCode)
+            {
+                acc.OpenStatus = oldStatus;
+                StateHasChanged();
+            }
+        }
+        catch
+        {
+            acc.OpenStatus = oldStatus;
+            StateHasChanged();
+        }
+    }
+
+    private async Task Disconnect(LineAccount acc)
+    {
+        acc.IsDisconnecting = true;
+        StateHasChanged();
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var payload = new { lineUserId = LineUserId, channelId = acc.ChannelId };
+            var json = System.Text.Json.JsonSerializer.Serialize(payload);
+            var res = await http.PatchAsync("api/cnuline/DisconnectLineAccount",
+                new StringContent(json, System.Text.Encoding.UTF8, "application/json"));
+
+            if (res.IsSuccessStatusCode)
+                accounts.Remove(acc);
+        }
+        catch { }
+        finally
+        {
+            acc.IsDisconnecting = false;
+            StateHasChanged();
+        }
+    }
+
+    private class LineAccount
+    {
+        public string ChannelId      { get; set; } = "";
+        public string ChannelName    { get; set; } = "";
+        public string OpenStatus     { get; set; } = "1";
+        public bool   IsDisconnecting { get; set; } = false;
+    }
+}
