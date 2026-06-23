@@ -576,6 +576,90 @@ namespace CnuFacebookAPI.Controllers
         }
 
         // ─────────────────────────────────────────────────────────────
+        // LINE LOGIN — STEP 1: สร้าง LINE OAuth URL
+        // ─────────────────────────────────────────────────────────────
+        [HttpGet("GetLineLoginUrl")]
+        public IActionResult GetLineLoginUrl()
+        {
+            string channelId   = _config["LineApp:ChannelId"]!;
+            string redirectUri = Uri.EscapeDataString(_config["LineApp:CallbackUrl"]!);
+            string state       = Uri.EscapeDataString(Guid.NewGuid().ToString("N"));
+            string nonce       = Uri.EscapeDataString(Guid.NewGuid().ToString("N"));
+
+            string url = "https://access.line.me/oauth2/v2.1/authorize" +
+                         "?response_type=code" +
+                         $"&client_id={channelId}" +
+                         $"&redirect_uri={redirectUri}" +
+                         $"&state={state}" +
+                         "&scope=profile%20openid" +
+                         $"&nonce={nonce}";
+
+            return Ok(new { loginUrl = url });
+        }
+
+        // ─────────────────────────────────────────────────────────────
+        // LINE LOGIN — STEP 2: แลก code → access token → ดึง profile
+        // Blazor LineCallback.razor เรียกมาพร้อม ?code=
+        // ─────────────────────────────────────────────────────────────
+        [HttpGet("ExchangeLineCode")]
+        public async Task<IActionResult> ExchangeLineCode([FromQuery] string? code)
+        {
+            if (string.IsNullOrEmpty(code))
+                return BadRequest(new { message = "ไม่พบ authorization code" });
+
+            string channelId     = _config["LineApp:ChannelId"]!;
+            string channelSecret = _config["LineApp:ChannelSecret"]!;
+            string redirectUri   = _config["LineApp:CallbackUrl"]!;
+
+            using var http = _httpFactory.CreateClient();
+
+            var form = new FormUrlEncodedContent(new[]
+            {
+                new KeyValuePair<string, string>("grant_type",    "authorization_code"),
+                new KeyValuePair<string, string>("code",          code),
+                new KeyValuePair<string, string>("redirect_uri",  redirectUri),
+                new KeyValuePair<string, string>("client_id",     channelId),
+                new KeyValuePair<string, string>("client_secret", channelSecret),
+            });
+
+            var tokenRes = await http.PostAsync("https://api.line.me/oauth2/v2.1/token", form);
+            if (!tokenRes.IsSuccessStatusCode)
+            {
+                string err = await tokenRes.Content.ReadAsStringAsync();
+                Console.WriteLine($"[LINE] token exchange failed: {err}");
+                return BadRequest(new { message = "แลก LINE token ไม่สำเร็จ" });
+            }
+
+            var tokenDoc = JsonDocument.Parse(await tokenRes.Content.ReadAsStringAsync());
+            if (!tokenDoc.RootElement.TryGetProperty("access_token", out var atEl))
+                return BadRequest(new { message = "ไม่พบ access_token ใน LINE response" });
+
+            string accessToken = atEl.GetString()!;
+
+            var profileReq = new HttpRequestMessage(HttpMethod.Get, "https://api.line.me/v2/profile");
+            profileReq.Headers.Authorization =
+                new System.Net.Http.Headers.AuthenticationHeaderValue("Bearer", accessToken);
+
+            var profileRes = await http.SendAsync(profileReq);
+            var profileDoc = JsonDocument.Parse(await profileRes.Content.ReadAsStringAsync());
+
+            string lineUserId   = profileDoc.RootElement.TryGetProperty("userId",      out var uid) ? uid.GetString() ?? "" : "";
+            string displayName  = profileDoc.RootElement.TryGetProperty("displayName", out var dn)  ? dn.GetString()  ?? "" : "";
+            string pictureUrl   = profileDoc.RootElement.TryGetProperty("pictureUrl",  out var pic) ? pic.GetString() ?? "" : "";
+
+            string cacheKey = $"line_session_{lineUserId}_{Guid.NewGuid():N}";
+            _cache.Set(cacheKey, new LineSessionCache
+            {
+                AccessToken = accessToken,
+                LineUserId  = lineUserId,
+                DisplayName = displayName,
+                PictureUrl  = pictureUrl
+            }, TimeSpan.FromMinutes(10));
+
+            return Ok(new { sessionKey = cacheKey, lineUserId, displayName, pictureUrl });
+        }
+
+        // ─────────────────────────────────────────────────────────────
         // Data Deletion Callback — Facebook POST มาเมื่อ user ถอน permission
         // Facebook ส่ง signed_request มาใน body (form-encoded)
         // เราต้องลบข้อมูลของ user นั้น แล้ว respond ด้วย JSON { url, confirmation_code }
@@ -792,6 +876,14 @@ namespace CnuFacebookAPI.Controllers
         // Model classes
         // ─────────────────────────────────────────────────────────────
         private record ConvMsg(string Role, string Text);
+
+        public class LineSessionCache
+        {
+            public string AccessToken { get; set; } = "";
+            public string LineUserId  { get; set; } = "";
+            public string DisplayName { get; set; } = "";
+            public string PictureUrl  { get; set; } = "";
+        }
 
         public class FacebookSessionCache
         {

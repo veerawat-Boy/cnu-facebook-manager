@@ -1,0 +1,98 @@
+@page "/line-callback"
+@rendermode InteractiveServer
+@inject NavigationManager Nav
+@inject IHttpClientFactory HttpFactory
+
+<div class="page-card">
+    <div class="page-card-body">
+        @if (isLoading)
+        {
+            <div class="text-center py-4">
+                <div class="spinner-border text-secondary" role="status"></div>
+                <p class="text-muted mt-2 small">กำลังเชื่อมต่อ LINE...</p>
+            </div>
+        }
+        else if (!string.IsNullOrEmpty(errorMessage))
+        {
+            <div class="alert alert-danger small" role="alert">@errorMessage</div>
+            <div class="text-center mt-3">
+                <a href="/" class="btn-next">กลับหน้าหลัก</a>
+            </div>
+        }
+        else
+        {
+            <div class="text-center">
+                @if (!string.IsNullOrEmpty(pictureUrl))
+                {
+                    <img src="@pictureUrl" class="rounded-circle mb-3"
+                         width="64" height="64" alt="@displayName" />
+                }
+                <h5 class="page-title">เชื่อมต่อ LINE สำเร็จ!</h5>
+                <p class="page-subtitle">@displayName</p>
+                <a href="/" class="btn-next">กลับหน้าหลัก</a>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    [SupplyParameterFromQuery(Name = "code")]
+    public string? Code { get; set; }
+
+    [SupplyParameterFromQuery(Name = "error")]
+    public string? Error { get; set; }
+
+    private bool isLoading = true;
+    private string errorMessage = "";
+    private string displayName = "";
+    private string pictureUrl = "";
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (!firstRender) return;
+
+        if (!string.IsNullOrEmpty(Error))
+        {
+            errorMessage = $"LINE Login ถูกยกเลิก: {Error}";
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        if (string.IsNullOrEmpty(Code))
+        {
+            errorMessage = "ไม่พบ authorization code";
+            isLoading = false;
+            StateHasChanged();
+            return;
+        }
+
+        try
+        {
+            var http = HttpFactory.CreateClient("BackendAPI");
+            var res = await http.GetAsync(
+                $"api/cnufacebook/ExchangeLineCode?code={Uri.EscapeDataString(Code)}");
+
+            if (res.IsSuccessStatusCode)
+            {
+                var body = await res.Content.ReadAsStringAsync();
+                var doc = System.Text.Json.JsonDocument.Parse(body);
+                displayName = doc.RootElement.TryGetProperty("displayName", out var dn)
+                    ? dn.GetString() ?? "" : "";
+                pictureUrl = doc.RootElement.TryGetProperty("pictureUrl", out var pic)
+                    ? pic.GetString() ?? "" : "";
+            }
+            else
+            {
+                errorMessage = "ไม่สามารถเชื่อมต่อ LINE ได้ กรุณาลองใหม่";
+            }
+        }
+        catch
+        {
+            errorMessage = "ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์ได้ กรุณาลองใหม่";
+        }
+
+        isLoading = false;
+        StateHasChanged();
+    }
+}
