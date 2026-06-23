@@ -99,6 +99,33 @@ h1:focus { outline: none; }
     cursor: not-allowed;
 }
 
+/* ── LINE green button ── */
+.btn-line {
+    background-color: #06C755;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 230px;
+    justify-content: center;
+}
+
+.btn-line:hover:not(:disabled) {
+    background-color: #05a244;
+    color: white;
+}
+
+.btn-line:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
 /* ── Page list item ── */
 .page-list-item {
     display: flex;
