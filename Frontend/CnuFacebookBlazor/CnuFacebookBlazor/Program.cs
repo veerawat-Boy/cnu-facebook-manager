@@ -17,12 +17,12 @@ builder.Services.AddHttpClient("BackendAPI", client =>
     client.BaseAddress = new Uri(baseUrl);
 });
 
-// builder.Services.AddHttpClient("CnuConnectAPI", client =>
-// {
-//     string baseUrl = builder.Configuration["CnuConnectApi:BaseUrl"] ?? "https://localhost:7112/";
-//     if (!baseUrl.EndsWith('/')) baseUrl += '/';
-//     client.BaseAddress = new Uri(baseUrl);
-// });
+//builder.Services.AddHttpClient("CnuConnectAPI", client =>
+//{
+//    string baseUrl = builder.Configuration["CnuConnectApi:BaseUrl"] ?? "https://localhost:7112/";
+//    if (!baseUrl.EndsWith('/')) baseUrl += '/';
+//    client.BaseAddress = new Uri(baseUrl);
+//});
 
 var app = builder.Build();
 
