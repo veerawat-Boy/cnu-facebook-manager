@@ -20,78 +20,78 @@
                 <path d="M26 14H22.5L21.5 13H18.5L17.5 14H14V16H26V14ZM15 27C15 28.1 15.9 29 17 29H23C24.1 29 25 28.1 25 27V17H15V27Z" fill="white" />
             </svg>
             <div>
-                <h1 class="policy-title">การลบข้อมูลผู้ใช้</h1>
-                <p class="policy-meta">CNU Facebook Manager &nbsp;|&nbsp; มีผลบังคับใช้ตั้งแต่ 1 มกราคม 2568</p>
+                <h1 class="policy-title">User Data Deletion</h1>
+                <p class="policy-meta">CNU Facebook Manager &nbsp;|&nbsp; Effective from January 1, 2025</p>
             </div>
         </div>
 
         <section>
-            <h2>1. ข้อมูลที่เราจัดเก็บ</h2>
-            <p>CNU Facebook Manager จัดเก็บข้อมูลต่อไปนี้เมื่อท่านเชื่อมต่อบัญชี Facebook:</p>
+            <h2>1. Data We Collect</h2>
+            <p>CNU Facebook Manager collects the following data when you connect your Facebook account:</p>
             <ul>
-                <li><strong>ข้อมูลโปรไฟล์</strong> — ชื่อผู้ใช้และรูปโปรไฟล์จาก Facebook</li>
-                <li><strong>Token ของเพจ</strong> — ใช้สำหรับส่งข้อความตอบกลับในนามเพจของท่าน</li>
-                <li><strong>การตั้งค่าเพจ</strong> — Prompt และการตั้งค่าการตอบกลับอัตโนมัติของแต่ละเพจ</li>
+                <li><strong>Profile information</strong> — Username and profile picture from Facebook</li>
+                <li><strong>Page token</strong> — Used to send reply messages on behalf of your page</li>
+                <li><strong>Page settings</strong> — Prompt and auto-reply configuration for each page</li>
             </ul>
         </section>
 
         <section>
-            <h2>2. วิธีลบข้อมูลของท่าน</h2>
-            <p>ท่านสามารถขอให้ลบข้อมูลทั้งหมดออกจากระบบได้ 2 วิธี:</p>
+            <h2>2. How to Delete Your Data</h2>
+            <p>You can request deletion of all your data from the system in 2 ways:</p>
 
-            <h3>วิธีที่ 1 — ผ่าน Facebook (อัตโนมัติ)</h3>
+            <h3>Method 1 — Via Facebook (Automatic)</h3>
             <ol>
-                <li>เข้าสู่ <strong>การตั้งค่า Facebook</strong></li>
-                <li>ไปที่ <strong>ความเป็นส่วนตัว → แอปพลิเคชันและเว็บไซต์</strong></li>
-                <li>ค้นหา <strong>CNUChatBot2026</strong> แล้วกด <strong>ลบ</strong></li>
-                <li>ระบบจะแจ้งมายังเราโดยอัตโนมัติผ่าน Callback URL และลบข้อมูลทันที</li>
+                <li>Go to <strong>Facebook Settings</strong></li>
+                <li>Navigate to <strong>Privacy → Apps and Websites</strong></li>
+                <li>Find <strong>CNUChatBot2026</strong> and click <strong>Remove</strong></li>
+                <li>We will be notified automatically via a Callback URL and your data will be deleted immediately</li>
             </ol>
 
-            <h3>วิธีที่ 2 — ติดต่อโดยตรง</h3>
+            <h3>Method 2 — Contact Us Directly</h3>
             <p>
-                ส่งอีเมลมาที่ <a href="mailto:cnuprogrammer2021@gmail.com">cnuprogrammer2021@gmail.com</a>
-                โดยระบุหัวข้อว่า <strong>"ขอลบข้อมูล — CNU Facebook Manager"</strong>
-                พร้อมชื่อบัญชี Facebook ของท่าน
+                Send an email to <a href="mailto:cnuprogrammer2021@gmail.com">cnuprogrammer2021@gmail.com</a>
+                with the subject <strong>"Data Deletion Request — CNU Facebook Manager"</strong>
+                along with your Facebook account name
             </p>
         </section>
 
         @if (!string.IsNullOrEmpty(ConfirmationCode))
         {
             <section class="status-box">
-                <h2>สถานะการลบข้อมูล</h2>
-                <p>คำขอลบข้อมูลของท่านได้รับการบันทึกแล้ว</p>
-                <p>รหัสยืนยัน: <strong>@ConfirmationCode</strong></p>
-                <p>ข้อมูลของท่านจะถูกลบภายใน 30 วันทำการ</p>
+                <h2>Deletion Status</h2>
+                <p>Your data deletion request has been recorded</p>
+                <p>Confirmation code: <strong>@ConfirmationCode</strong></p>
+                <p>Your data will be deleted within 30 business days</p>
             </section>
         }
 
         <section>
-            <h2>3. ระยะเวลาดำเนินการ</h2>
+            <h2>3. Processing Time</h2>
             <p>
-                เราจะดำเนินการลบข้อมูลของท่านภายใน <strong>30 วันทำการ</strong>
-                นับจากวันที่ได้รับคำขอ และจะแจ้งผลการดำเนินการกลับมายังอีเมลของท่าน
+                We will delete your data within <strong>30 business days</strong>
+                from the date the request is received, and will notify you of the outcome via email
             </p>
         </section>
 
         <section>
-            <h2>4. ข้อมูลที่ไม่สามารถลบได้</h2>
+            <h2>4. Data That Cannot Be Deleted</h2>
             <p>
-                ข้อมูลที่อยู่ในระบบของ Meta/Facebook ต้องดำเนินการลบผ่านช่องทางของ Facebook โดยตรง
-                ซึ่งอยู่นอกเหนือขอบเขตที่เราสามารถจัดการได้
+                Data stored within Meta/Facebook's systems must be deleted directly through Facebook's own channels,
+                which is outside the scope of what we can manage
             </p>
         </section>
 
         <section>
-            <h2>5. ติดต่อเรา</h2>
+            <h2>5. Contact Us</h2>
             <p>
-                หากมีข้อสงสัยเพิ่มเติม กรุณาติดต่อ:<br />
+                If you have any further questions, please contact:<br />
                 <strong>CNU Facebook Manager</strong><br />
-                อีเมล: <a href="mailto:cnuprogrammer2021@gmail.com">cnuprogrammer2021@gmail.com</a>
+                Email: <a href="mailto:cnuprogrammer2021@gmail.com">cnuprogrammer2021@gmail.com</a>
             </p>
         </section>
 
         <div class="policy-footer">
-            <a href="/" class="text-muted text-decoration-none small">&larr; กลับหน้าหลัก</a>
+            <a href="/" class="text-muted text-decoration-none small">&larr; Back to home</a>
         </div>
     </div>
 </div>
